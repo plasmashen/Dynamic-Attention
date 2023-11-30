@@ -2,11 +2,10 @@ import logging
 import os
 import sys
 import numpy as np
-from typing import Dict
 
 import datasets
 import transformers
-from transformers import set_seed, Trainer
+from transformers import set_seed
 from transformers.trainer_utils import get_last_checkpoint
 
 from arguments import get_args
@@ -115,7 +114,7 @@ if __name__ == '__main__':
 
     elif data_args.task_name.lower() == "sa":
         assert data_args.dataset_name.lower() in SA_DATASETS
-        from tasks.sa.get_trainer import get_trainer
+        from tasks.get_trainer import get_trainer
 
     else:
         raise NotImplementedError('Task {} is not implemented. Please choose a task from: {}'.format(data_args.task_name, ", ".join(TASKS)))
