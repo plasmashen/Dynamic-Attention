@@ -6,7 +6,7 @@ from typing import Optional
 
 from transformers import HfArgumentParser, TrainingArguments
 
-from tasks.utils import *
+DATASETS = ["amazon", "yelp", "imdb", "twitter", "offenseval", "jigsaw", "enron"]
 
 
 @dataclass
@@ -19,12 +19,6 @@ class DataTrainingArguments:
     the command line.training_args
     """
 
-    task_name: str = field(
-        metadata={
-            "help": "The name of the task to train on: " + ", ".join(TASKS),
-            "choices": TASKS
-        },
-    )
     dataset_name: str = field(
         metadata={
             "help": "The name of the dataset to use: " + ", ".join(DATASETS),

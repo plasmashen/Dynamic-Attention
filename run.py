@@ -10,7 +10,7 @@ from transformers.trainer_utils import get_last_checkpoint
 
 from arguments import get_args
 
-from tasks.utils import *
+DATASETS = ["amazon", "yelp", "imdb", "twitter", "offenseval", "jigsaw", "enron"]
 
 os.environ["WANDB_DISABLED"] = "true"
 
@@ -92,32 +92,9 @@ if __name__ == '__main__':
     if not os.path.isdir("checkpoints") or not os.path.exists("checkpoints"):
         os.mkdir("checkpoints")
 
-    if data_args.task_name.lower() == "superglue":
-        assert data_args.dataset_name.lower() in SUPERGLUE_DATASETS
-        from tasks.superglue.get_trainer import get_trainer
+    assert data_args.dataset_name.lower() in DATASETS
+    from tasks.get_trainer import get_trainer
 
-    elif data_args.task_name.lower() == "glue":
-        assert data_args.dataset_name.lower() in GLUE_DATASETS
-        from tasks.glue.get_trainer import get_trainer
-
-    elif data_args.task_name.lower() == "ner":
-        assert data_args.dataset_name.lower() in NER_DATASETS
-        from tasks.ner.get_trainer import get_trainer
-
-    elif data_args.task_name.lower() == "srl":
-        assert data_args.dataset_name.lower() in SRL_DATASETS
-        from tasks.srl.get_trainer import get_trainer
-    
-    elif data_args.task_name.lower() == "qa":
-        assert data_args.dataset_name.lower() in QA_DATASETS
-        from tasks.qa.get_trainer import get_trainer
-
-    elif data_args.task_name.lower() == "sa":
-        assert data_args.dataset_name.lower() in SA_DATASETS
-        from tasks.get_trainer import get_trainer
-
-    else:
-        raise NotImplementedError('Task {} is not implemented. Please choose a task from: {}'.format(data_args.task_name, ", ".join(TASKS)))
 
     set_seed(training_args.seed)
 
