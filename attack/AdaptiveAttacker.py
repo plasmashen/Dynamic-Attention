@@ -38,7 +38,7 @@ from textattack.transformations import (
 )
 from textattack.constraints import Constraint
 from textattack.attack_recipes import AttackRecipe
-from models import BertForSequenceClassification, BertPrefixForSequenceClassification, \
+from modeling_bert import BertForSequenceClassification, BertPrefixForSequenceClassification, \
     BertPromptForSequenceClassification
 # from model.sequence_classification import (
 #     BertPrefixForSequenceClassification,

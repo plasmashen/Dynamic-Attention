@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from models import BertForSequenceClassification, BertPrefixForSequenceClassification, \
+from modeling_bert import BertForSequenceClassification, BertPrefixForSequenceClassification, \
     BertPromptForSequenceClassification
 from modeling_gpt2 import GPT2ForSequenceClassification
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig

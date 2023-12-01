@@ -254,9 +254,9 @@ class BertSelfAttention(nn.Module):
             encoder_attention_mask=None,
             past_key_value=None,
             output_attentions=False,
-            top=None,
-            random_top=False,
-            random_bound=None,
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=None,
             decay_value=0
     ):
         if attention_probs is None:
@@ -317,10 +317,10 @@ class BertSelfAttention(nn.Module):
                     attention_scores = attention_scores + relative_position_scores_query + relative_position_scores_key
 
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-            if random_top:
-                top = [0 if len(random_bound) == 2 else random_bound[2],
-                       random.randint(random_bound[0], random_bound[1])]
-            if top and decay_value != 1:
+            if dynamic_attention:
+                fixed_range = [0 if len(da_range) == 2 else da_range[2],
+                       random.randint(da_range[0], da_range[1])]
+            if fixed_range and decay_value != 1:
                 batch = attention_mask.shape[0]
                 psl1, psl2 = 0, 0
                 if "pre_seq_len" in self.config.__dict__:
@@ -345,16 +345,16 @@ class BertSelfAttention(nn.Module):
                 attention_mask_t = -1e9 * (1 - attention_mask_t.type(torch.float32))
                 attention_scores_t = nn.Softmax(dim=-1)(attention_mask_t + attention_scores)
                 # attention_scores_t = attention_scores
-                # idx = attention_scores_t.sum(1).sum(1).topk(top[1], -1).indices[:, top[0]:]
-                if len(top) == 2:
-                    if top[0] == 0 and top[1] != 0:
-                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:]
-                    elif top[1] == 0:
-                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:-top[0]]
+                # idx = attention_scores_t.sum(1).sum(1).fixed_rangek(fixed_range[1], -1).indices[:, fixed_range[0]:]
+                if len(fixed_range) == 2:
+                    if fixed_range[0] == 0 and fixed_range[1] != 0:
+                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:]
+                    elif fixed_range[1] == 0:
+                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:-fixed_range[0]]
                     else:
-                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:-top[0]]
+                        idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:-fixed_range[0]]
                 else:
-                    idx = [random.sample([i for i in range(256)], int(top[0] * 256))]
+                    idx = [random.sample([i for i in range(256)], int(fixed_range[0] * 256))]
                 attention_scores += attention_mask
                 attention_probs = nn.Softmax(dim=-1)(attention_scores)
                 if decay_value != 1:
@@ -443,9 +443,9 @@ class BertAttention(nn.Module):
             encoder_attention_mask=None,
             past_key_value=None,
             output_attentions=False,
-            top=None,
-            random_top=False,
-            random_bound=None,
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=None,
             decay_value=0
     ):
         self_outputs = self.self(
@@ -457,9 +457,9 @@ class BertAttention(nn.Module):
             encoder_attention_mask,
             past_key_value,
             output_attentions,
-            top,
-            random_top,
-            random_bound,
+            fixed_range,
+            dynamic_attention,
+            da_range,
             decay_value
         )
         attention_output = self.output(self_outputs[0], hidden_states)
@@ -532,9 +532,9 @@ class BertLayer(nn.Module):
             encoder_attention_mask=None,
             past_key_value=None,
             output_attentions=False,
-            top=None,
-            random_top=False,
-            random_bound=None,
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=None,
             decay_value=0
     ):
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
@@ -546,9 +546,9 @@ class BertLayer(nn.Module):
             head_mask,
             output_attentions=output_attentions,
             past_key_value=self_attn_past_key_value,
-            top=top,
-            random_top=random_top,
-            random_bound=random_bound,
+            fixed_range=fixed_range,
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
             decay_value=decay_value
         )
         attention_output = self_attention_outputs[0]
@@ -621,9 +621,9 @@ class BertEncoder(nn.Module):
             output_attentions=False,
             output_hidden_states=False,
             return_dict=True,
-            top=None,
-            random_top=False,
-            random_bound=None,
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=None,
             decay_value=0
     ):
         all_hidden_states = () if output_hidden_states else None
@@ -662,7 +662,7 @@ class BertEncoder(nn.Module):
                     encoder_attention_mask,
                 )
             else:
-                if not top and not random_top:
+                if not fixed_range and not dynamic_attention:
                     layer_outputs = layer_module(
                         hidden_states,
                         attention_mask,
@@ -683,9 +683,9 @@ class BertEncoder(nn.Module):
                         encoder_attention_mask,
                         past_key_value,
                         output_attentions,
-                        top,
-                        random_top=random_top,
-                        random_bound=random_bound,
+                        fixed_range,
+                        dynamic_attention=dynamic_attention,
+                        da_range=da_range,
                         decay_value=decay_value
                     )
                 # else:
@@ -698,24 +698,24 @@ class BertEncoder(nn.Module):
                 #                                                                    dtype=torch.float32,
                 #                                                                    device=attention_mask.device)
                 #
-                #     if random_top:
-                #         top = [0, random.randint(random_bound[0], random_bound[1])]
+                #     if dynamic_attention:
+                #         fixed_range = [0, random.randint(da_range[0], da_range[1])]
                 #     past_key_value_length = psl if past_key_value is not None else 0
-                #     if top[0] == 0:
+                #     if fixed_range[0] == 0:
                 #         idx = (((extended_attention_mask == 0)[:, :, :, past_key_value_length:].permute(0, 1, 3, 2) * (
                 #                     extended_attention_mask == 0)) * all_self_attentions[-1]).sum(1).sum(1).sort(
                 #             dim=-1).indices[:,
-                #               -top[1]:]
+                #               -fixed_range[1]:]
                 #     else:
                 #         idx = (((extended_attention_mask == 0)[:, :, :, past_key_value_length:].permute(0, 1, 3, 2) * (
                 #                     extended_attention_mask == 0)) * all_self_attentions[-1]).sum(1).sum(1).sort(
                 #             dim=-1).indices[:,
-                #               -top[1]:-top[0]]
-                # if top[0]==0:
-                #     idx = all_self_attentions[-1].sum(1).sum(1).sort(dim=-1).indices[:, -top[1]:]
+                #               -fixed_range[1]:-fixed_range[0]]
+                # if fixed_range[0]==0:
+                #     idx = all_self_attentions[-1].sum(1).sum(1).sort(dim=-1).indices[:, -fixed_range[1]:]
                 # else:
-                #     idx = all_self_attentions[-1].sum(1).sum(1).sort(dim=-1).indices[:, -top[1]:-top[0]]
-                # replace_val = -1e9 * torch.ones([idx.shape[0], 1, 1, top[1] - top[0]], dtype=torch.float32,
+                #     idx = all_self_attentions[-1].sum(1).sum(1).sort(dim=-1).indices[:, -fixed_range[1]:-fixed_range[0]]
+                # replace_val = -1e9 * torch.ones([idx.shape[0], 1, 1, fixed_range[1] - fixed_range[0]], dtype=torch.float32,
                 #                                 device=attention_mask.device)
                 # attention_mask_t = torch.scatter(attention_mask, -1, idx.unsqueeze(1).unsqueeze(1), replace_val)
                 # layer_outputs = layer_module(
@@ -727,7 +727,7 @@ class BertEncoder(nn.Module):
                 #     encoder_attention_mask,
                 #     past_key_value,
                 #     output_attentions,
-                #     top,
+                #     fixed_range,
                 # )
 
             hidden_states = layer_outputs[0]
@@ -1043,9 +1043,9 @@ class BertModel(BertPreTrainedModel):
             output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
-            top=None,
-            random_top=False,
-            random_bound=None,
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=None,
             decay_value=0
     ):
         r"""
@@ -1146,9 +1146,9 @@ class BertModel(BertPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
-            top=top,
-            random_top=random_top,
-            random_bound=random_bound,
+            fixed_range=fixed_range,
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
             decay_value=decay_value
         )
         sequence_output = encoder_outputs[0]
@@ -1641,9 +1641,9 @@ class BertForSequenceClassification(BertPreTrainedModel):
             output_attentions=True,
             output_hidden_states=None,
             return_dict=None,
-            top=None,
-            random_top=False,
-            random_bound=[3, 6],
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=[3, 6],
             decay_value=0
     ):
         r"""
@@ -1665,9 +1665,9 @@ class BertForSequenceClassification(BertPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
-            top=top,
-            random_top=random_top,
-            random_bound=random_bound,
+            fixed_range=fixed_range,
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
             decay_value=decay_value
         )
 
@@ -2038,9 +2038,9 @@ class BertPrefixForSequenceClassification(BertPreTrainedModel):
             output_attentions=True,
             output_hidden_states=None,
             return_dict=None,
-            top=[],
-            random_top=False,
-            random_bound=[3, 6],
+            fixed_range=[],
+            dynamic_attention=False,
+            da_range=[3, 6],
             decay_value=0
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -2062,9 +2062,9 @@ class BertPrefixForSequenceClassification(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             past_key_values=past_key_values,
-            top=top,
-            random_top=random_top,
-            random_bound=random_bound,
+            fixed_range=fixed_range,
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
             decay_value=decay_value
         )
 
@@ -2148,9 +2148,9 @@ class BertPromptForSequenceClassification(BertPreTrainedModel):
             output_attentions=True,
             output_hidden_states=None,
             return_dict=None,
-            top=None,
-            random_top=False,
-            random_bound=[3, 6],
+            fixed_range=None,
+            dynamic_attention=False,
+            da_range=[3, 6],
             decay_value=0
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -2178,9 +2178,9 @@ class BertPromptForSequenceClassification(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             # past_key_values=past_key_values,
-            top=top,
-            random_top=random_top,
-            random_bound=random_bound,
+            fixed_range=fixed_range,
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
             decay_value=decay_value
         )
 

@@ -42,7 +42,7 @@ from textattack.transformations import (
     WordSwapExtend,
 )
 from modeling_t5 import T5ForTextToText
-from models import BertForSequenceClassification, BertPrefixForSequenceClassification, \
+from modeling_bert import BertForSequenceClassification, BertPrefixForSequenceClassification, \
     BertPromptForSequenceClassification
 # from model.sequence_classification import (
 #     BertPrefixForSequenceClassification,

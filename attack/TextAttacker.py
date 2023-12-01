@@ -40,7 +40,7 @@ from textattack.transformations import (
 )
 
 from textattack.attack_recipes import AttackRecipe
-from models import BertForSequenceClassification, BertPrefixForSequenceClassification, \
+from modeling_bert import BertForSequenceClassification, BertPrefixForSequenceClassification, \
     BertPromptForSequenceClassification
 from modeling_gpt2 import GPT2ForSequenceClassification
 # from model.sequence_classification import (
@@ -315,7 +315,8 @@ class A2TYoo2021(AttackRecipe):
             transformation = WordSwapEmbedding(max_candidates=20)
             constraints.append(WordEmbeddingDistance(min_cos_sim=0.8))
         constraints.append(MaxModificationRate(max_rate=max_rate, min_threshold=4))
-        goal_function = UntargetedClassification(model_wrapper, model_batch_size=32, target_max_score=tms, query_budget=200)
+        goal_function = UntargetedClassification(model_wrapper, model_batch_size=32, target_max_score=tms,
+                                                 query_budget=200)
         search_method = GreedyWordSwapWIR(wir_method="gradient")
 
         return Attack(goal_function, constraints, transformation, search_method)
@@ -354,11 +355,10 @@ if __name__ == '__main__':
     parser.add_argument("--model_dir", type=str)
     parser.add_argument("--decay_value", default=0, type=float)
     parser.add_argument("--tms", default=0.4, type=float)
-    parser.add_argument("--random_top", action="store_true")
+    parser.add_argument("--dynamic_attention", action="store_true")
     parser.add_argument("--long_text", action="store_true")
     parser.add_argument("--random_bound", nargs='+', type=float, default=[0.1, 0.2])
     parser.add_argument("--dropout", action="store_true")
-
 
     args = parser.parse_args()
     max_rate = args.max_rate
@@ -367,7 +367,7 @@ if __name__ == '__main__':
     dataset_name = args.dataset_name
     model_dir = args.model_dir
     decay_value = args.decay_value
-    rand_top = args.random_top
+    da_enabled = args.dynamic_attention
     long_text = args.long_text
     random_bound = [float(i) for i in args.random_bound]
     dropout = args.dropout
@@ -400,9 +400,11 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"must provide model_dir or model_name")
     if (model_name and 'gpt' in model_name) or (model_dir and 'gpt' in model_dir):
-        model_wrapper = HuggingFaceModelWrapperForGPT(gpt, tokenizer, long_text, decay_value, rand_top, random_bound, dropout)
+        model_wrapper = HuggingFaceModelWrapperForGPT(gpt, tokenizer, long_text, decay_value, da_enabled, random_bound,
+                                                      dropout)
     else:
-        model_wrapper = HuggingFaceModelWrapper(bert, tokenizer, long_text, decay_value, rand_top, random_bound, dropout)
+        model_wrapper = HuggingFaceModelWrapper(bert, tokenizer, long_text, decay_value, da_enabled, random_bound,
+                                                dropout)
 
     attack_module = AutoAttack(attack_method)
     attack = attack_module.build(model_wrapper, max_rate, tms=target_max_score)
@@ -430,19 +432,18 @@ if __name__ == '__main__':
         dataset_name = 'amazon'
         # raise ValueError(f"model_name must in twitter, jigsaw, amazon, yelp or enron")
 
-    df_db_val = df_db_val.sample(500, random_state=2021)
+    df_db_val = df_db_val.sample(1000, random_state=2021)
     dataset = [i for i in zip(df_db_val.sentence, df_db_val.label)]
     dataset = textattack.datasets.Dataset(dataset)
 
-    file_name = "{}top{}{}{}{}.txt".format("rand" if rand_top else "",
-                                             "".join([str(i) for i in random_bound]) if rand_top else "".join(
-                                                 [str(i) for i in top]),
-                                             "dv" + str(decay_value) if decay_value != 0. else "",
-                                             "drop" if dropout else "",
-                                             dataset_name)
-    attack_args = AttackArgs(num_examples=500,
-                             log_to_txt="adv_output2/{}/{}/{}".format(model_name if model_name else model_dir,
-                                                                     attack_method, file_name))
+    file_name = "{}top{}{}{}{}.txt".format("da" if da_enabled else "",
+                                           "".join([str(i) for i in random_bound]) if da_enabled else "",
+                                           "dv" + str(decay_value) if decay_value != 0. else "",
+                                           "drop" if dropout else "",
+                                           dataset_name)
+    attack_args = AttackArgs(num_examples=1000,
+                             log_to_txt="adv_output/{}/{}/{}".format(model_name if model_name else model_dir,
+                                                                      attack_method, file_name))
     attacker = Attacker(attack, dataset, attack_args)
 
     attack_results = attacker.attack_dataset()

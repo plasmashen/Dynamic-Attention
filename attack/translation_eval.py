@@ -45,8 +45,8 @@ for i in tqdm.tqdm(range(len(orig_trans))):
     orig_preds.append(orig_out0)
 
 print("Calculate original adversarial BLEU")
-model.model.encoder.decay_value, model.model.encoder.random_top = 1, False
-model.model.decoder.decay_value, model.model.decoder.random_top = 1, False
+model.model.encoder.decay_value, model.model.encoder.dynamic_attention = 1, False
+model.model.decoder.decay_value, model.model.decoder.dynamic_attention = 1, False
 bleu_values = []
 for i in tqdm.tqdm(range(len(orig_trans))):
     adv_ids = tokenizer([adv_sent[i]], padding=True)
@@ -65,15 +65,15 @@ dv = [0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 rbs = [[0.1, 0.2, 0.], [0.2, 0.3, 0.], [0.1, 0.3, 0.], [0.2, 0.3, 0.1], [0.3, 0.4, 0.1], [0.2, 0.4, 0.1],
        [0.3, 0.4, 0.2], [0.4, 0.5, 0.2], [0.3, 0.5, 0.2]]
 for j in dv:
-    model.model.encoder.decay_value, model.model.encoder.random_top = j, True
-    model.model.decoder.decay_value, model.model.decoder.random_top = 1, False
+    model.model.encoder.decay_value, model.model.encoder.dynamic_attention = j, True
+    model.model.decoder.decay_value, model.model.decoder.dynamic_attention = 1, False
     bleu_values = []
     for rb in rbs:
         for i in tqdm.tqdm(range(len(orig_trans))):
             adv_ids = tokenizer([adv_sent[i]], padding=True)
             text_length = len(adv_ids["input_ids"][0])
             top1, top2, top3 = int(rb[0] * text_length), int(rb[1] * text_length), int(rb[2] * text_length)
-            model.model.encoder.random_bound = [top1, top2, top3]
+            model.model.encoder.da_range = [top1, top2, top3]
 
             adv_out = model(torch.tensor(adv_ids["input_ids"]).to(device))
             adv_out0 = adv_out[0].replace('<pad> ', '').replace('<unk>', '').replace('</s>', '')

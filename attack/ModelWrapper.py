@@ -24,7 +24,7 @@ class PyTorchModelWrapper(ModelWrapper):
             No type requirement, but most have `tokenizer` method that accepts list of strings.
     """
 
-    def __init__(self, model, tokenizer, decay_value, rand_top, random_bound=[3, 8], dropout=False):
+    def __init__(self, model, tokenizer, decay_value, dynamic_attention, da_range=[3, 8], dropout=False):
         if not isinstance(model, torch.nn.Module):
             raise TypeError(
                 f"PyTorch model must be torch.nn.Module, got type {type(model)}"
@@ -33,8 +33,8 @@ class PyTorchModelWrapper(ModelWrapper):
         self.model = model
         self.tokenizer = tokenizer
         self.decay_value = decay_value
-        self.random_top = rand_top
-        self.random_bound = random_bound
+        self.dynamic_attention = dynamic_attention
+        self.da_range = da_range
         self.dropout = dropout
 
     def to(self, device):
@@ -52,7 +52,7 @@ class PyTorchModelWrapper(ModelWrapper):
         with torch.no_grad():
             outputs = batch_model_predict(
                 self.model, ids, decay_value=self.decay_value,
-                random_top=self.random_top, random_bound=self.random_bound, batch_size=batch_size
+                random_top=self.dynamic_attention, random_bound=self.da_range, batch_size=batch_size
             )
 
         return outputs
@@ -122,7 +122,7 @@ class PyTorchModelWrapper(ModelWrapper):
 class HuggingFaceModelWrapper(PyTorchModelWrapper):
     """Loads a HuggingFace ``transformers`` model and tokenizer."""
 
-    def __init__(self, model, tokenizer, long_text, decay_value, rand_top, random_bound=[3, 6], dropout=False):
+    def __init__(self, model, tokenizer, long_text, decay_value, dynamic_attention, da_range=[3, 6], dropout=False):
         assert isinstance(
             model, transformers.PreTrainedModel
         ), f"`model` must be of type `transformers.PreTrainedModel`, but got type {type(model)}."
@@ -135,8 +135,8 @@ class HuggingFaceModelWrapper(PyTorchModelWrapper):
         self.tokenizer = tokenizer
         self.long_text = long_text
         self.decay_value = decay_value
-        self.random_top = rand_top
-        self.random_bound = random_bound
+        self.dynamic_attention = dynamic_attention
+        self.da_range = da_range
         self.dropout = dropout
 
     def __call__(self, text_input_list, batch_size=4):
@@ -163,22 +163,22 @@ class HuggingFaceModelWrapper(PyTorchModelWrapper):
         inputs_dict.to(model_device)
         if self.dropout:
             self.model.train()
-        if self.random_bound[1] < 1:
+        if self.da_range[1] < 1:
             text_length = sum([len(text_input.split(' ')) for text_input in text_input_list]) / len(text_input_list)
             if self.long_text:
-                top1 = min(int(self.random_bound[0] * text_length), 5)
-                top2 = min(max(int(self.random_bound[1] * text_length), 5), 20)
+                top1 = min(int(self.da_range[0] * text_length), 5)
+                top2 = min(max(int(self.da_range[1] * text_length), 5), 20)
             else:
-                top1 = int(self.random_bound[0] * text_length)
-                top2 = int(self.random_bound[1] * text_length)
+                top1 = int(self.da_range[0] * text_length)
+                top2 = int(self.da_range[1] * text_length)
         else:
-            top1 = int(self.random_bound[0])
-            top2 = int(self.random_bound[1])
+            top1 = int(self.da_range[0])
+            top2 = int(self.da_range[1])
 
         with torch.no_grad():
             outputs = batch_model_predict_2(
                 self.model, **inputs_dict, decay_value=self.decay_value,
-                random_top=self.random_top, random_bound=[top1, top2], batch_size=batch_size
+                random_top=self.dynamic_attention, random_bound=[top1, top2], batch_size=batch_size
             )
 
         if isinstance(outputs[0], str):
@@ -270,7 +270,7 @@ class HuggingFaceModelWrapper(PyTorchModelWrapper):
 class HuggingFaceModelWrapperForGPT(PyTorchModelWrapper):
     """Loads a HuggingFace ``transformers`` model and tokenizer."""
 
-    def __init__(self, model, tokenizer, long_text, decay_value, rand_top, random_bound=[3, 6], dropout=False):
+    def __init__(self, model, tokenizer, long_text, decay_value, dynamic_attention, da_range=[3, 6], dropout=False):
         assert isinstance(
             model, transformers.PreTrainedModel
         ), f"`model` must be of type `transformers.PreTrainedModel`, but got type {type(model)}."
@@ -283,8 +283,8 @@ class HuggingFaceModelWrapperForGPT(PyTorchModelWrapper):
         self.tokenizer = tokenizer
         self.long_text = long_text
         self.decay_value = decay_value
-        self.random_top = rand_top
-        self.random_bound = random_bound
+        self.dynamic_attention = dynamic_attention
+        self.da_range = da_range
         self.dropout = dropout
 
     def __call__(self, text_input_list, batch_size=4):
@@ -313,22 +313,22 @@ class HuggingFaceModelWrapperForGPT(PyTorchModelWrapper):
         #     self.model.train()
         if self.dropout:
             self.model.train()
-        if self.random_bound[1] < 1:
+        if self.da_range[1] < 1:
             text_length = sum([len(text_input.split(' ')) for text_input in text_input_list]) / len(text_input_list)
             if self.long_text:
-                top1 = min(int(self.random_bound[0] * text_length), 5)
-                top2 = min(max(int(self.random_bound[1] * text_length), 5), 20)
+                top1 = min(int(self.da_range[0] * text_length), 5)
+                top2 = min(max(int(self.da_range[1] * text_length), 5), 20)
             else:
-                top1 = int(self.random_bound[0] * text_length)
-                top2 = int(self.random_bound[1] * text_length)
+                top1 = int(self.da_range[0] * text_length)
+                top2 = int(self.da_range[1] * text_length)
         else:
-            top1 = int(self.random_bound[0])
-            top2 = int(self.random_bound[1])
+            top1 = int(self.da_range[0])
+            top2 = int(self.da_range[1])
 
         with torch.no_grad():
             outputs = batch_model_predict_1(
                 self.model, **inputs_dict, decay_value=self.decay_value,
-                random_top=self.random_top, random_bound=[top1, top2], batch_size=batch_size
+                random_top=self.dynamic_attention, random_bound=[top1, top2], batch_size=batch_size
             )
 
         if isinstance(outputs[0], str):

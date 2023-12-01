@@ -7,6 +7,8 @@ python3 run.py --model_name_or_path bert-large-cased --task_name sa --dataset_na
 ```
 - `--output_dir`: the saving dir for the fine-tuned/prefix-tuned/prompt-tuned model
 
+The model parameter will be saved in `checkpoints` folder
+
 Prompt-tuning model requires larger learning rate.\
 Fine-tuning model requires smaller learning rate.
 

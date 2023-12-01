@@ -8,7 +8,7 @@ import transformers
 import pandas as pd
 import numpy as np
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
-from models import BertForSequenceClassification, BertPrefixForSequenceClassification, \
+from modeling_bert import BertForSequenceClassification, BertPrefixForSequenceClassification, \
     BertPromptForSequenceClassification
 import argparse
 # from model.sequence_classification import (
