@@ -179,8 +179,8 @@ class GPT2Attention(nn.Module):
         self.num_heads = self.num_heads - len(heads)
         self.pruned_heads = self.pruned_heads.union(heads)
 
-    def _attn(self, query, key, value, attention_mask=None, head_mask=None, decay_value=1, random_top=False,
-              random_bound=None, top=None):
+    def _attn(self, query, key, value, attention_mask=None, head_mask=None, decay_value=1, dynamic_attention=False,
+              da_range=None, fixed_range=None):
         attn_weights = torch.matmul(query, key.transpose(-1, -2))
 
         if self.scale_attn_weights:
@@ -192,20 +192,20 @@ class GPT2Attention(nn.Module):
         if self.scale_attn_by_inverse_layer_idx:
             attn_weights = attn_weights / float(self.layer_idx + 1)
 
-        if random_top:
-            top = [0 if len(random_bound) == 2 else random_bound[2],
-                   random.randint(random_bound[0], random_bound[1])]
-        if top and decay_value != 1:
+        if dynamic_attention:
+            fixed_range = [0 if len(da_range) == 2 else da_range[2],
+                   random.randint(da_range[0], da_range[1])]
+        if fixed_range and decay_value != 1:
             attn_weights_t = (attn_weights.sum(1).sum(1) + attention_mask[0, 0]).sort()
-            if len(top) == 2:
-                if top[0] == 0 and top[1] != 0:
-                    idx = attn_weights_t.indices[:, -top[1]:]
-                elif top[1] == 0:
-                    idx = attn_weights_t.indices[:, -top[1]:-top[0]]
+            if len(fixed_range) == 2:
+                if fixed_range[0] == 0 and fixed_range[1] != 0:
+                    idx = attn_weights_t.indices[:, -fixed_range[1]:]
+                elif fixed_range[1] == 0:
+                    idx = attn_weights_t.indices[:, -fixed_range[1]:-fixed_range[0]]
                 else:
-                    idx = attn_weights_t.indices[:, -top[1]:-top[0]]
+                    idx = attn_weights_t.indices[:, -fixed_range[1]:-fixed_range[0]]
             else:
-                idx = [random.sample([i for i in range(256)], int(top[0] * 256))]
+                idx = [random.sample([i for i in range(256)], int(fixed_range[0] * 256))]
 
             # attn_weights[:, :, :, idx[0]] *= decay_value
 
@@ -224,7 +224,7 @@ class GPT2Attention(nn.Module):
             attn_weights = attn_weights + attention_mask
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
-        if top and decay_value != 1:
+        if fixed_range and decay_value != 1:
             attn_weights[:, :, :, idx[0]] *= decay_value
         # Downcast (if necessary) back to V's dtype (if in mixed-precision) -- No-Op otherwise
         attn_weights = attn_weights.type(value.dtype)
@@ -317,9 +317,9 @@ class GPT2Attention(nn.Module):
             use_cache: Optional[bool] = False,
             output_attentions: Optional[bool] = False,
             decay_value=1,
-            random_top=False,
-            random_bound=None,
-            top=None
+            dynamic_attention=False,
+            da_range=None,
+            fixed_range=None
     ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]], ...]:
         if encoder_hidden_states is not None:
             if not hasattr(self, "q_attn"):
@@ -351,8 +351,8 @@ class GPT2Attention(nn.Module):
         if self.reorder_and_upcast_attn:
             attn_output, attn_weights = self._upcast_and_reordered_attn(query, key, value, attention_mask, head_mask)
         else:
-            attn_output, attn_weights = self._attn(query, key, value, attention_mask, head_mask, decay_value, random_top,
-              random_bound, top)
+            attn_output, attn_weights = self._attn(query, key, value, attention_mask, head_mask, decay_value, dynamic_attention,
+              da_range, fixed_range)
 
         attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
         attn_output = self.c_proj(attn_output)
@@ -409,9 +409,9 @@ class GPT2Block(nn.Module):
             use_cache: Optional[bool] = False,
             output_attentions: Optional[bool] = False,
             decay_value=1,
-            random_top=False,
-            random_bound=None,
-            top=None
+            dynamic_attention=False,
+            da_range=None,
+            fixed_range=None
     ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
@@ -423,9 +423,9 @@ class GPT2Block(nn.Module):
             use_cache=use_cache,
             output_attentions=output_attentions,
             decay_value=decay_value,
-            random_top=random_top,
-            random_bound=random_bound,
-            top=top
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
+            fixed_range=fixed_range
         )
         attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
@@ -798,9 +798,9 @@ class GPT2Model(GPT2PreTrainedModel):
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
             decay_value=1,
-            random_top=False,
-            random_bound=None,
-            top=None
+            dynamic_attention=False,
+            da_range=None,
+            fixed_range=None
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -940,9 +940,9 @@ class GPT2Model(GPT2PreTrainedModel):
                     use_cache=use_cache,
                     output_attentions=output_attentions,
                     decay_value=decay_value,
-                    random_top=random_top,
-                    random_bound=random_bound,
-                    top=top
+                    dynamic_attention=dynamic_attention,
+                    da_range=da_range,
+                    fixed_range=fixed_range
                 )
 
             hidden_states = outputs[0]
@@ -1445,9 +1445,9 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
             decay_value=1,
-            random_top=False,
-            random_bound=None,
-            top=None
+            dynamic_attention=False,
+            da_range=None,
+            fixed_range=None
     ) -> Union[Tuple, SequenceClassifierOutputWithPast]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
@@ -1470,9 +1470,9 @@ class GPT2ForSequenceClassification(GPT2PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             decay_value=decay_value,
-            random_top=random_top,
-            random_bound=random_bound,
-            top=top
+            dynamic_attention=dynamic_attention,
+            da_range=da_range,
+            fixed_range=fixed_range
         )
         hidden_states = transformer_outputs[0]
         logits = self.score(hidden_states)

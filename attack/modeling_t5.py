@@ -561,10 +561,10 @@ class T5Attention(nn.Module):
             query_length=None,
             use_cache=False,
             output_attentions=False,
-            top=[3,8],
+            fixed_range=[3,8],
             decay_value=1,
-            random_top=False,
-            random_bound=[3, 8]
+            dynamic_attention=False,
+            da_range=[3, 8]
     ):
         """
         Self-attention (if key_value_states is None) or attention over source sentence (provided by key_value_states).
@@ -647,8 +647,8 @@ class T5Attention(nn.Module):
             if mask is not None:
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
-        if random_top:
-            top = [0 if len(random_bound) == 2 else random_bound[2], random.randint(random_bound[0], random_bound[1])]
+        if dynamic_attention:
+            fixed_range = [0 if len(da_range) == 2 else da_range[2], random.randint(da_range[0], da_range[1])]
 
         if decay_value != 1:
             batch = mask.shape[0]
@@ -660,13 +660,13 @@ class T5Attention(nn.Module):
                 attention_mask_t = ((mask_ == 0)[:, :, :, :].permute(0, 1, 3, 2) * (mask_ == 0))
                 attention_mask_t = -1e9 * (1 - attention_mask_t.type(torch.float32))
                 attention_scores_t = nn.Softmax(dim=-1)(attention_mask_t + scores)
-            if len(top) == 2:
-                if top[0] == 0 and top[1] != 0:
-                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:]
-                elif top[1] == 0:
-                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:-top[0]]
+            if len(fixed_range) == 2:
+                if fixed_range[0] == 0 and fixed_range[1] != 0:
+                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:]
+                elif fixed_range[1] == 0:
+                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:-fixed_range[0]]
                 else:
-                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -top[1]:-top[0]]
+                    idx = attention_scores_t.sum(1).sum(1).sort().indices[:, -fixed_range[1]:-fixed_range[0]]
             else:
                 raise
             attention_decay = torch.ones_like(scores)
@@ -715,10 +715,10 @@ class T5LayerSelfAttention(nn.Module):
             past_key_value=None,
             use_cache=False,
             output_attentions=False,
-            top=[3,8],
+            fixed_range=[3,8],
             decay_value=1,
-            random_top=False,
-            random_bound=[3, 8]
+            dynamic_attention=False,
+            da_range=[3, 8]
     ):
         normed_hidden_states = self.layer_norm(hidden_states)
         attention_output = self.SelfAttention(
@@ -729,10 +729,10 @@ class T5LayerSelfAttention(nn.Module):
             past_key_value=past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            top=top,
+            fixed_range=fixed_range,
             decay_value=decay_value,
-            random_top=random_top,
-            random_bound=random_bound
+            dynamic_attention=dynamic_attention,
+            da_range=da_range
         )
         hidden_states = hidden_states + self.dropout(attention_output[0])
         outputs = (hidden_states,) + attention_output[1:]  # add attentions if we output them
@@ -757,10 +757,10 @@ class T5LayerCrossAttention(nn.Module):
             use_cache=False,
             query_length=None,
             output_attentions=False,
-            top=[3,8],
+            fixed_range=[3,8],
             decay_value=1,
-            random_top=True,
-            random_bound=[3, 8]
+            dynamic_attention=True,
+            da_range=[3, 8]
     ):
         normed_hidden_states = self.layer_norm(hidden_states)
         attention_output = self.EncDecAttention(
@@ -773,10 +773,10 @@ class T5LayerCrossAttention(nn.Module):
             use_cache=use_cache,
             query_length=query_length,
             output_attentions=output_attentions,
-            top=top,
+            fixed_range=fixed_range,
             decay_value=decay_value,
-            random_top=random_top,
-            random_bound=random_bound
+            dynamic_attention=dynamic_attention,
+            da_range=da_range
         )
         layer_output = hidden_states + self.dropout(attention_output[0])
         outputs = (layer_output,) + attention_output[1:]  # add attentions if we output them
@@ -808,10 +808,10 @@ class T5Block(nn.Module):
             use_cache=False,
             output_attentions=False,
             return_dict=True,
-            top=[3,8],
+            fixed_range=[3,8],
             decay_value=1,
-            random_top=False,
-            random_bound=[3, 8]
+            dynamic_attention=False,
+            da_range=[3, 8]
     ):
 
         if past_key_value is not None:
@@ -839,10 +839,10 @@ class T5Block(nn.Module):
             past_key_value=self_attn_past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            top=top,
+            fixed_range=fixed_range,
             decay_value=decay_value,
-            random_top=random_top,
-            random_bound=random_bound
+            dynamic_attention=dynamic_attention,
+            da_range=da_range
         )
         hidden_states, present_key_value_state = self_attention_outputs[:2]
         attention_outputs = self_attention_outputs[2:]  # Keep self-attention outputs and relative position weights
@@ -871,10 +871,10 @@ class T5Block(nn.Module):
                 query_length=query_length,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
-                top=top,
+                fixed_range=fixed_range,
                 decay_value=decay_value,
-                random_top=random_top,
-                random_bound=random_bound
+                dynamic_attention=dynamic_attention,
+                da_range=da_range
             )
             hidden_states = cross_attention_outputs[0]
 
@@ -1027,10 +1027,10 @@ class T5Stack(T5PreTrainedModel):
         self.model_parallel = False
         self.device_map = None
         self.gradient_checkpointing = False
-        self.top=[3,8],
+        self.fixed_range=[3,8],
         self.decay_value = 1
-        self.random_top = False
-        self.random_bound = [3, 8]
+        self.dynamic_attention = False
+        self.da_range = [3, 8]
 
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def parallelize(self, device_map=None):
@@ -1224,10 +1224,10 @@ class T5Stack(T5PreTrainedModel):
                     past_key_value=past_key_value,
                     use_cache=use_cache,
                     output_attentions=output_attentions,
-                    top=self.top,
+                    fixed_range=self.fixed_range,
                     decay_value=self.decay_value,
-                    random_top=self.random_top,
-                    random_bound=self.random_bound
+                    dynamic_attention=self.dynamic_attention,
+                    da_range=self.da_range
                 )
 
             # layer_outputs is a tuple with:
@@ -1793,8 +1793,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
                 # decay_value=self.decay_value,
-                # random_top=self.random_top,
-                # random_bound=self.random_bound
+                # dynamic_attention=self.dynamic_attention,
+                # da_range=self.da_range
             )
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(

@@ -477,9 +477,9 @@ if __name__ == '__main__':
     parser.add_argument("--model_dir", type=str)
     parser.add_argument("--decay_value", default=0, type=float)
     parser.add_argument("--tms", default=0.4, type=float)
-    parser.add_argument("--random_top", action="store_true")
-    parser.add_argument("--top", nargs='+', type=int, default=[])
-    parser.add_argument("--random_bound", nargs='+', type=float, default=[0.1, 0.2])
+    parser.add_argument("--dynamic_attention", action="store_true")
+    parser.add_argument("--fixed_range", nargs='+', type=int, default=[])
+    parser.add_argument("--da_range", nargs='+', type=float, default=[0.1, 0.2])
     parser.add_argument("--dropout", action="store_true")
     parser.add_argument("--adaptive", default=1, type=int)
 
@@ -490,9 +490,9 @@ if __name__ == '__main__':
     dataset_name = args.dataset_name
     model_dir = args.model_dir
     decay_value = args.decay_value
-    rand_top = args.random_top
-    top = [int(i) for i in args.top]
-    random_bound = [float(i) for i in args.random_bound]
+    dynamic_attention = args.dynamic_attention
+    fixed_range = [int(i) for i in args.fixed_range]
+    da_range = [float(i) for i in args.da_range]
     dropout = args.dropout
     target_max_score = args.tms
     adaptive_type = args.adaptive
@@ -518,7 +518,7 @@ if __name__ == '__main__':
             bert = BertForSequenceClassification.from_pretrained('../checkpoints/{}'.format(model_name))
     else:
         raise ValueError(f"must provide model_dir or model_name")
-    model_wrapper = HuggingFaceModelWrapper(bert, tokenizer, top, decay_value, rand_top, random_bound, dropout)
+    model_wrapper = HuggingFaceModelWrapper(bert, tokenizer, fixed_range, decay_value, dynamic_attention, da_range, dropout)
     attack_module = AutoAttack(attack_method)
     attack = attack_module.build(model_wrapper, max_rate, tms=target_max_score)
     if adaptive_type == 1:
@@ -530,22 +530,22 @@ if __name__ == '__main__':
     random.seed(1)
 
     if 'twitter' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/toxic_data/twitter/dev.tsv", sep="\t")
+        df_db_val = pd.read_csv("../Datasets/toxic_data/twitter/dev.tsv", sep="\t")
         dataset_name = 'twitter'
     elif 'jigsaw' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/toxic_data/jigsaw/dev.tsv", sep="\t")
+        df_db_val = pd.read_csv("../Datasets/toxic_data/jigsaw/dev.tsv", sep="\t")
         dataset_name = 'jigsaw'
     elif 'amazon' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/sentiment_data/amazon/dev.tsv", sep="\t")
+        df_db_val = pd.read_csv("../Datasets/sentiment_data/amazon/dev.tsv", sep="\t")
         dataset_name = 'amazon'
     elif 'yelp' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/sentiment_data/yelp/dev.tsv", sep="\t")
+        df_db_val = pd.read_csv("../Datasets/sentiment_data/yelp/dev.tsv", sep="\t")
         dataset_name = 'yelp'
     elif 'imdb' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/sentiment_data/imdb/dev.tsv", sep="\t")
+        df_db_val = pd.read_csv("../Datasets/sentiment_data/imdb/dev.tsv", sep="\t")
         dataset_name = 'imdb'
     elif 'enron' in dataset_name:
-        df_db_val = pd.read_csv("../../Datasets/spam_data/enron/dev.tsv", sep="\t").iloc[:3000]
+        df_db_val = pd.read_csv("../Datasets/spam_data/enron/dev.tsv", sep="\t").iloc[:3000]
         dataset_name = 'enron'
     else:
         raise ValueError(f"model_name must in twitter, jigsaw, amazon, yelp or enron")
@@ -554,11 +554,11 @@ if __name__ == '__main__':
     dataset = [i for i in zip(df_db_val.sentence, df_db_val.label)]
     dataset = textattack.datasets.Dataset(dataset)
 
-    file_name = "{}top{}{}{}{}.txt".format("rand" if rand_top else "",
-                                           "".join([str(i) for i in random_bound]) if rand_top else "".join(
-                                               [str(i) for i in top]),
+    file_name = "{}_range{}_{}_{}adaptive{}.txt".format("da" if dynamic_attention else "",
+                                           "".join([str(i) for i in da_range]) if dynamic_attention else "".join(
+                                               [str(i) for i in fixed_range]),
                                            "dv" + str(decay_value),
-                                           "drop" if dropout else "",
+                                           "dropout_" if dropout else "",
                                            str(adaptive_type))
     attack_args = AttackArgs(num_examples=500,
                              log_to_txt="adaptive_output/{}/{}/{}".format(model_name if model_name else model_dir,
