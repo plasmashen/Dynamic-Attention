@@ -59,27 +59,6 @@ import textattack
 from ModelWrapper import HuggingFaceModelWrapper, PyTorchModelWrapper
 
 
-def clean_str(string, lower=False):
-    """
-    Tokenization/string cleaning for all datasets except for SST.
-    Every dataset is lower cased except for TREC
-    """
-    string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
-    #     string = re.sub(r"\'s", " \'s", string)
-    #     string = re.sub(r"\'ve", " \'ve", string)
-    #     string = re.sub(r"n\'t", " n\'t", string)
-    #     string = re.sub(r"\'re", " \'re", string)
-    #     string = re.sub(r"\'d", " \'d", string)
-    #     string = re.sub(r"\'ll", " \'ll", string)
-    #     string = re.sub(r",", " , ", string)
-    #     string = re.sub(r"!", " ! ", string)
-    #     string = re.sub(r"\(", " \( ", string)
-    #     string = re.sub(r"\)", " \) ", string)
-    #     string = re.sub(r"\?", " \? ", string)
-    #     string = re.sub(r"\s{2,}", " ", string)
-    return string.strip().lower() if lower else string.strip()
-
-
 class Seq2SickCheng2018BlackBox(AttackRecipe):
     """Cheng, Minhao, et al.
 
@@ -252,9 +231,9 @@ if __name__ == '__main__':
     parser.add_argument("--max_rate", default=0.2, type=float)
     parser.add_argument("--model_name", default="t5-en-fr", type=str)
     parser.add_argument("--decay_value", default=1, type=int)
-    parser.add_argument("--random_top", action="store_true")
-    parser.add_argument("--top", nargs='+', type=int, default=[])
-    parser.add_argument("--random_bound", nargs='+', type=int, default=[3, 8])
+    parser.add_argument("--dynamic_attention", action="store_true")
+    parser.add_argument("--fixed_range", nargs='+', type=int, default=[])
+    parser.add_argument("--da_range", nargs='+', type=int, default=[3, 8])
     parser.add_argument("--dropout", action="store_true")
 
     args = parser.parse_args()
@@ -264,16 +243,12 @@ if __name__ == '__main__':
     if "sum" not in args.model_name:
         _, source_language, target_language = model_name.split("-")
     decay_value = args.decay_value
-    rand_top = args.random_top
-    top = [int(i) for i in args.top]
-    random_bound = [int(i) for i in args.random_bound]
+    dynamic_attention = args.dynamic_attention
+    fixed_range = [int(i) for i in args.fixed_range]
+    da_range = [int(i) for i in args.da_range]
     dropout = args.dropout
-    model = T5ForTextToText.from_pretrained(
-        model_name
-    )
-    model = PyTorchModelWrapper(
-        model, model.tokenizer, decay_value, rand_top, random_bound, dropout
-    )
+    model = T5ForTextToText.from_pretrained(model_name)
+    model = PyTorchModelWrapper(model, model.tokenizer, decay_value, dynamic_attention, da_range, dropout)
     if "sum" in args.model_name:
         dataset = ("gigaword", None, "test")
     else:
@@ -295,7 +270,6 @@ if __name__ == '__main__':
         save_dir = 'adv_nmt'
 
     attack_module = AutoAttack(attack_method)
-    # attack = Seq2SickCheng2018BlackBox.build(model)
     attack = attack_module.build(model, max_rate)
 
     file_name = "{}.txt".format(attack_method)

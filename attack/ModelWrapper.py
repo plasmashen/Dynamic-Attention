@@ -166,19 +166,19 @@ class HuggingFaceModelWrapper(PyTorchModelWrapper):
         if self.da_range[1] < 1:
             text_length = sum([len(text_input.split(' ')) for text_input in text_input_list]) / len(text_input_list)
             if self.long_text:
-                top1 = min(int(self.da_range[0] * text_length), 5)
-                top2 = min(max(int(self.da_range[1] * text_length), 5), 20)
+                range1 = min(int(self.da_range[0] * text_length), 5)
+                range2 = min(max(int(self.da_range[1] * text_length), 5), 20)
             else:
-                top1 = int(self.da_range[0] * text_length)
-                top2 = int(self.da_range[1] * text_length)
+                range1 = int(self.da_range[0] * text_length)
+                range2 = int(self.da_range[1] * text_length)
         else:
-            top1 = int(self.da_range[0])
-            top2 = int(self.da_range[1])
+            range1 = int(self.da_range[0])
+            range2 = int(self.da_range[1])
 
         with torch.no_grad():
             outputs = batch_model_predict_2(
                 self.model, **inputs_dict, decay_value=self.decay_value,
-                random_top=self.dynamic_attention, random_bound=[top1, top2], batch_size=batch_size
+                random_top=self.dynamic_attention, random_bound=[range1, range2], batch_size=batch_size
             )
 
         if isinstance(outputs[0], str):
@@ -316,19 +316,19 @@ class HuggingFaceModelWrapperForGPT(PyTorchModelWrapper):
         if self.da_range[1] < 1:
             text_length = sum([len(text_input.split(' ')) for text_input in text_input_list]) / len(text_input_list)
             if self.long_text:
-                top1 = min(int(self.da_range[0] * text_length), 5)
-                top2 = min(max(int(self.da_range[1] * text_length), 5), 20)
+                range1 = min(int(self.da_range[0] * text_length), 5)
+                range2 = min(max(int(self.da_range[1] * text_length), 5), 20)
             else:
-                top1 = int(self.da_range[0] * text_length)
-                top2 = int(self.da_range[1] * text_length)
+                range1 = int(self.da_range[0] * text_length)
+                range2 = int(self.da_range[1] * text_length)
         else:
-            top1 = int(self.da_range[0])
-            top2 = int(self.da_range[1])
+            range1 = int(self.da_range[0])
+            range2 = int(self.da_range[1])
 
         with torch.no_grad():
             outputs = batch_model_predict_1(
                 self.model, **inputs_dict, decay_value=self.decay_value,
-                random_top=self.dynamic_attention, random_bound=[top1, top2], batch_size=batch_size
+                random_top=self.dynamic_attention, random_bound=[range1, range2], batch_size=batch_size
             )
 
         if isinstance(outputs[0], str):

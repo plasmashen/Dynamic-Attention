@@ -19,6 +19,8 @@ Provide the dir of the model parameter in `checkpoints```
 - \[A]: amazon-bert-normal/amazon-bert-prefix/amazon-bert-prompt
 
 ### Adversarial Attack
+
+Text classification tasks
 ```bash
 python3 TextAttacker.py --attack_method [A] --model_name [B]
 ```
@@ -26,13 +28,18 @@ python3 TextAttacker.py --attack_method [A] --model_name [B]
 - \[B]: directory name of model parameters in `checkpoints` 
 - extra arguments:
   - `--model_dir`: load model from `output` directory where the model is adversarialy trained (str)
-  - `--tms`: target max score (default 0.4)
   - `--long_text`: to constrain the upper bound of $m$'s the range, should be enabled for Enron dataset
-  - `--random_top`: enable the dynamic attention masking (store_true)
-  - `--random_bound`: control the range of $m$, usually 0.1 and 0.2 for fine-tuned model (list)
+  - `--dynamic_attention`: enable the dynamic attention masking (store_true)
+  - `--da_range`: control the range of $m$, usually 0.1 and 0.2 for fine-tuned model (list)
   - `--dropout`: enable dropout (store_true)
 
 The adversarial example txt file will be saved in `adv_output` folder. 
+
+Text generation tasks
+```bash
+python3 NMTAttacker.py --attack_method [A] --model_name [B]
+```
+
 
 ### Inference
 Inference examples can be found in `test_top.py` and `test_nmt.py`.
