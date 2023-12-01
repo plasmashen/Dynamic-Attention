@@ -42,7 +42,7 @@ python3 NMTAttacker.py --attack_method [A] --model_name [B]
 
 
 ### Inference
-Inference examples can be found in `test_top.py` and `test_nmt.py`.
+Inference examples can be found in `test_classification.py` and `test_generation.py`.
 Change the model dir and adversarial example dir.
 
 ### Adaptive Attack 
