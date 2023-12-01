@@ -1,6 +1,6 @@
 #Datasets
-Download and unzip datasets in corresponding folder.
+Download and unzip datasets in corresponding folder. 
 [Amazon](https://drive.google.com/file/d/18pgoRYbv-oDEpXF2CwOMlkjcl9M8BTtS/view?usp=share_link) and 
-[Yelp](https://drive.google.com/file/d/1bv8fhdRaL-zZsULLLzDAt8uZ7J9eiPMf/view?usp=share_link) datasets in sentiment analysis folder;
+[Yelp](https://drive.google.com/file/d/1bv8fhdRaL-zZsULLLzDAt8uZ7J9eiPMf/view?usp=share_link) datasets in sentiment folder;
 Twitter dataset in toxic folder;
 Enron dataset in spam folder.
